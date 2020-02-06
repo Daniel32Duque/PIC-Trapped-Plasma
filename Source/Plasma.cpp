@@ -143,8 +143,8 @@ void Plasma::extractSelfPotential(std::string fileName) const
 void Plasma::extractHistory(std::string preName, std::string postName) const
 {
 	std::ofstream newPositions, newSpeeds;
-	newPositions.open(preName + "Positions" + postName, std::ios::app);
-	newSpeeds.open(preName + "Speeds" + postName, std::ios::app);
+	newPositions.open(preName + "Positions" + postName);
+	newSpeeds.open(preName + "Speeds" + postName);
 	for (const MacroRing& aRing : rings)
 	{
 		aRing.printPositions(newPositions);
