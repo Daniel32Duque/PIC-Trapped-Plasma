@@ -140,6 +140,16 @@ void Plasma::extractSelfPotential(std::string fileName) const
 	newFile << selfPotential.format(fastFullPrecision);
 	newFile.close();
 }
+void Plasma::extractPlasmaParameters(std::string fileName) const
+{
+	std::ofstream newFile;
+	newFile.open(fileName);
+	newFile << mass << '\n';
+	newFile << charge << '\n';
+	newFile << massMacro << '\n';
+	newFile << chargeMacro;
+	newFile.close();
+}
 void Plasma::extractHistory(std::string preName) const
 {
 	std::ofstream newPositions, newSpeeds;
