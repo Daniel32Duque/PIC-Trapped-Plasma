@@ -227,7 +227,7 @@ void PenningTrap::extractPlasmasHistories(std::string pathAndPreName) const
 	int i{ 1 };
 	for (const Plasma& aPlasma : plasmas)
 	{
-		aPlasma.extractHistory(pathAndPreName, std::to_string(i) + ".csv");
+		aPlasma.extractHistory(pathAndPreName);
 		++i;
 	}
 }
