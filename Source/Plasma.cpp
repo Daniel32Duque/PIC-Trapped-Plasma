@@ -69,8 +69,8 @@ void MacroRing::printSpeeds(std::ofstream& file) const
 Plasma class
 ----------------------------------------------------------------------------------------------------------*/
 
-Plasma::Plasma(PenningTrap& trap, double aMass, double aCharge)
-	: refTrap(trap) , mass(aMass), charge(aCharge)
+Plasma::Plasma(PenningTrap& trap, std::string aName, double aMass, double aCharge)
+	: refTrap(trap) , name(aName), mass(aMass), charge(aCharge)
 {
 	refTrap.addPlasma(*this);
 }
