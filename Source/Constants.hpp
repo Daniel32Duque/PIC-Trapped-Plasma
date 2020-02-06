@@ -14,9 +14,4 @@ const double epsilon{ 8.8541878128e-12 }; //Permittivity of free space in SI uni
 const double massE{ 9.1093837015e-31 }; //Electron rest mass in kilograms
 const double PI{ 3.14159265359 };
 
-enum load
-{ 
-	oneDUniformZero //All particles at r = 0; uniformly along z, all with speed of 0
-};
-
 #endif
