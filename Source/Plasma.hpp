@@ -61,6 +61,7 @@ public:
 	~Plasma();
 	friend PenningTrap;
 	void extractSelfPotential(std::string fileName) const;//Store the potential field in a document called filename
+	void extractPlasmaParameters(std::string filename) const;//Extract the plasma parameters
 	//Loading routines
 	/*----------------------------------------------------------------------------------
 	These routines below are the only thing that you should change/add to the code.
