@@ -41,6 +41,7 @@ class Plasma
 {
 private:
 	PenningTrap& refTrap;
+	const std::string name;//A name to identify the output files e.g. Electrons, Antiprotons, etc.
 	const double mass; //Mass of type of particles that form the plasma. It is NOT the total mass of the plasma.
 	const double charge; //Not the net charge of the plasma. It is the charge of the particle that forms the plasma.
 	double chargeMacro; //Charge of each MacroRing, all rings have the same charge regardless of r position.
@@ -56,7 +57,7 @@ private:
 	void reserve(int desired);
 	void extractHistory(std::string preName, std::string postName) const;
 public:
-	Plasma(PenningTrap& trap, double mass, double charge);
+	Plasma(PenningTrap& trap, std::string name, double mass, double charge);
 	~Plasma();
 	friend PenningTrap;
 	void extractSelfPotential(std::string fileName) const;//Store the potential field in a document called filename
