@@ -231,6 +231,26 @@ void PenningTrap::extractPlasmasHistories(std::string pathAndPreName) const
 		++i;
 	}
 }
+void PenningTrap::extractTrapParameters(std::string filename) const
+{
+	std::ofstream newFile;
+	newFile.open(filename);
+	newFile << trapRadius << '\n';
+	for (unsigned int i = 0; i < electrodes.size(); ++i)
+	{
+		newFile << electrodes[i].getLength();
+		i < electrodes.size() - 1 ? newFile << ',' : newFile << '\n';
+	}
+	for (unsigned int i = 0; i < gaps.size(); ++i)
+	{
+		newFile << gaps[i];
+		i < gaps.size() - 1 ? newFile << ',' : newFile << '\n';
+	}
+	newFile << Nz << ',' << Nr << '\n';
+	newFile << hz << ',' << hr << '\n';
+	newFile << lengthTrap;
+	newFile.close();
+}
 void PenningTrap::setPotential(int indexElectrode, double newPotential)
 {
 	electrodes[indexElectrode].setPotential(newPotential);

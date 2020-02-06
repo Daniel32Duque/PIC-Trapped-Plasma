@@ -63,6 +63,7 @@ public:
 	void extractTrapPotential(std::string fileName) const;//Store the potential field in a document called filename
 	void extractTrapLaplacian(std::string fileName) const; //Store in filename, this is expected to be all zeros 
 	void extractPlasmasHistories(std::string pathAndPreName) const; //History of all plasmas, separate file for position, speed, etc.
+	void extractTrapParameters(std::string filename) const;//Store the intrinsic and static parameters of the trap i.e. dimensions, number of grids, etc.
 	void setPotential(int indexElectrode, double newPotential); //Change potential of a single electrode, it changes the field as well
 	double getLength() const;
 	double getRadius() const;
