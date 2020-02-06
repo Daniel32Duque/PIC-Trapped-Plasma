@@ -140,11 +140,11 @@ void Plasma::extractSelfPotential(std::string fileName) const
 	newFile << selfPotential.format(fastFullPrecision);
 	newFile.close();
 }
-void Plasma::extractHistory(std::string preName, std::string postName) const
+void Plasma::extractHistory(std::string preName) const
 {
 	std::ofstream newPositions, newSpeeds;
-	newPositions.open(preName + "Positions" + postName);
-	newSpeeds.open(preName + "Speeds" + postName);
+	newPositions.open(preName + "Positions" + name + ".csv");
+	newSpeeds.open(preName + "Speeds" + name + ".csv");
 	for (const MacroRing& aRing : rings)
 	{
 		aRing.printPositions(newPositions);
