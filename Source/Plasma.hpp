@@ -56,6 +56,7 @@ private:
 	void saveState(); //Store state of each of the rings
 	void reserve(int desired);
 	void extractHistory(std::string preName) const;
+	double getPotentialEnergy() const;
 public:
 	Plasma(PenningTrap& trap, std::string name, double mass, double charge);
 	~Plasma();

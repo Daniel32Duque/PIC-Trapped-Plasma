@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 10 Dec 2019
+Last modified on 18 Feb 2020
 
 Definitions for the Plasma class
 This file contains a corresponding source file.
@@ -162,6 +162,21 @@ void Plasma::extractHistory(std::string preName) const
 	}
 	newPositions.close();
 	newSpeeds.close();
+}
+double Plasma::getPotentialEnergy() const
+{
+	double potentialEnergy{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		int indexZ{ (int)floor(aRing.getZ() / refTrap.hz) };
+		double fieldLeft{ refTrap.getTotalPhi(aRing.getR(), indexZ) };
+		double fieldRight{ refTrap.getTotalPhi(aRing.getR(), indexZ + 1) };
+		double dz{ aRing.getZ() - indexZ * refTrap.hz };
+		double weightFactor{ dz / refTrap.hz };
+		double phiHere{ (1 - weightFactor) * fieldLeft + weightFactor * fieldRight };
+		potentialEnergy += phiHere * chargeMacro;
+	}
+	return potentialEnergy / 2;
 }
 void Plasma::saveState()
 {

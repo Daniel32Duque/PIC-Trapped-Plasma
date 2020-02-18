@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 10 Dec 2019
+Last modified on 18 Feb 2020
 
 Declarations for the Electrode and PenningTrap classes
 This file contains a corresponding source file.
@@ -42,6 +42,7 @@ private:
 	int Nr; //Same, but only Nr grid points, the last grid point is fixed at the electrodes (boundary)
 	double hr, hz; //Distance between grid points
 	double lengthTrap; //Total length of all electrodes and gaps
+	std::vector<double> potentialEnergiesHistory; //The total potential energy of all particles in the trap
 	std::vector<double> timesSaved; //Times at which the state of the plasmas was stored
 	Eigen::SparseMatrix<double> coefficients{ Nz * Nr + Nr, Nz * Nr + Nr };//Sparse matrix formed from finite difference method
 	void generateSparse();
@@ -55,6 +56,7 @@ private:
 	std::unordered_map<int, double> eFields; //"Smart" way of obtaining electric field fast avoids repeating grid points
 	double getEField(int r, int z); //Get E field at one of the grid points
 	double getEField(int r, double z); //Get field anywhere, based on E field at neighbour grid points.
+	double getTotalPhi(int r, int z) const; //Get the sum of the potential fields of the trap plus all the plasmas in a grid point
 	
 public:
 	PenningTrap(double radius, const std::vector<Electrode>& theElectrodes, const std::vector<double>& theGaps, int NumCellsZ, int NumCellsR);
