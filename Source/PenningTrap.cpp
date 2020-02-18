@@ -224,6 +224,18 @@ void PenningTrap::extractPlasmasHistories(std::string pathAndPreName) const
 		}
 	}
 	newFile.close();
+	//Now extract the total potential energy
+	newFile.open(pathAndPreName + "PotentialEnergies.csv");
+	for (unsigned int i = 0; i < potentialEnergiesHistory.size(); ++i)
+	{
+		newFile << potentialEnergiesHistory[i];
+		if (i < potentialEnergiesHistory.size() - 1)
+		{
+			newFile << ",";
+		}
+	}
+	newFile.close();
+	//Plasma phase space history
 	int i{ 1 };
 	for (const Plasma& aPlasma : plasmas)
 	{
@@ -273,6 +285,16 @@ double PenningTrap::getEField(int r, double z)//There is a problem if z == lengt
 	double weightFactor{ dz / hz };
 	return ( (1 - weightFactor) * fieldLeft + weightFactor * fieldRight );
 }
+double PenningTrap::getTotalPhi(int r, int z) const
+{
+	int index{ (Nz + 1) * r + z };
+	double phi{ potentialsVector.coeff(index) };
+	for (const Plasma& aPlasma : plasmas)
+	{
+		phi += aPlasma.selfPotential.coeff(index);
+	}
+	return phi;
+}
 void PenningTrap::movePlasmas(double deltaT)
 {
 	for (Plasma& aPlasma : plasmas)
@@ -288,10 +310,13 @@ void PenningTrap::movePlasmas(double deltaT)
 void PenningTrap::saveStates(double aTime)
 {
 	timesSaved.push_back(aTime);
+	double potentialEnergy{ 0 };
 	for (Plasma& aPlasma : plasmas)
 	{
 		aPlasma.saveState();
+		potentialEnergy += aPlasma.getPotentialEnergy();
 	}
+	potentialEnergiesHistory.push_back(potentialEnergy);
 }
 void PenningTrap::reserve(int desired)
 {
