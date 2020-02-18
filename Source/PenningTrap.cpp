@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 10 Dec 2019
+Last modified on 18 Feb 2020
 
 Definitions for the Electrode and PenningTrap classes
 */
