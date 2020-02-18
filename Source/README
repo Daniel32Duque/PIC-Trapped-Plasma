@@ -1,1 +1,8 @@
 These are the core source files for the plasma simulations.
+They are divided by functionality:
+
+1) Plasma.hpp and Plasma.cpp contain the functionality of the plasma class
+2) PenningTrap.hpp and PenningTrap.cpp contain the functionality of the trap
+
+To run the code you need to build your own main file, depending on what it is you want to simulate. This usually is less than 10-20 lines.
+Look at the .hpp files to see what are the public methods of each class, there are very few, mostly printing stuff.
