@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 10 Dec 2019
+Last modified on 04 Mar 2020
 
 Declarations for the Plasma class
 This file contains a corresponding source file.
@@ -47,7 +47,9 @@ private:
 	double chargeMacro; //Charge of each MacroRing, all rings have the same charge regardless of r position.
 	double massMacro; //Mass of each MacroRing.
 	std::vector<MacroRing> rings;
-	//double temperature;
+	double temperature;
+	double totalCharge;
+	double centralDensity;
 	Eigen::VectorXd selfPotential{ refTrap.Nz * refTrap.Nr + refTrap.Nr };
 	Eigen::VectorXd RHS{ refTrap.Nz * refTrap.Nr + refTrap.Nr };// = - charge density / permittivity of free space
 	void updateRHS();
@@ -57,12 +59,17 @@ private:
 	void reserve(int desired);
 	void extractHistory(std::string preName) const;
 	double getPotentialEnergy() const;
+	Eigen::VectorXd initialDensity{ refTrap.Nz * refTrap.Nr + refTrap.Nr };// Initial density with which the plasma was loaded
+	void estimateDensityProportions(); //Estimate the densities w.r.t. central densities in local thermal equilibrium from total potential. i.e. a value of 1 for all radius at the centre. Need to determine the actual values based on the profile
+	void fitDensityProportionToProfile(double shape, double scale); //Weight each radius to match the desired profile
+	void normalizeDensityToTotalCharge(); //Weight each radius so that the total charge matches the desired total charge
 public:
 	Plasma(PenningTrap& trap, std::string name, double mass, double charge);
 	~Plasma();
 	friend PenningTrap;
 	void extractSelfPotential(std::string fileName) const;//Store the potential field in a document called filename
 	void extractPlasmaParameters(std::string filename) const;//Extract the plasma parameters
+	void extractInitialDensity(std::string filename) const;
 	//Loading routines
 	/*----------------------------------------------------------------------------------
 	These routines below are the only thing that you should change/add to the code.
@@ -80,6 +87,7 @@ public:
 	-------------------------------------------------------------------------------------*/
 	void loadOneDUniform(int numMacro, double chargeMacro, double lengthLine, int r); //equally spaced particles at fixed r in a length centred in the center of the trap.
 	void loadSingleRing(double chargeMacro, int r, double Z, double speed); //Single ring at a position with a velocity
+	void loadProfile(double aTemperature, double totalCharge, double shape, double scale, int numMacro, double KSThreshold); //Load using a density profile (as obtained from MCP), shape and scale define the generalized normal fit. Assume local thermal equilibrium along each radius
 };
 
 #endif
