@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 18 Feb 2020
+Last modified on 04 Mar 2020
 
 Definitions for the Electrode and PenningTrap classes
 */
@@ -156,6 +156,13 @@ void PenningTrap::updateRHS()
 			totalLength += electrodes[i].getLength() + gaps[i];
 		}
 	}
+	//Sometimes, if the number of grid cells is large, rounding errors cause the last grid point to be missed
+	//fill the last points missed due to rounding errors with the appropriate end electrode
+	while (point < Nz + 1)
+	{
+		RHS.coeffRef(point + N) = -1 * matrixFactor * electrodes.back().getPotential();
+		point++;
+	}
 }
 void PenningTrap::solveLaplace()
 {
@@ -294,6 +301,13 @@ double PenningTrap::getTotalPhi(int r, int z) const
 		phi += aPlasma.selfPotential.coeff(index);
 	}
 	return phi;
+}
+double PenningTrap::getTotalPhi(int r, double z) const
+{
+	int indexZ{ (int)floor(z / hz) };
+	double dz{ z - indexZ * hz };
+	double weightFactor{ dz / hz };
+	return ((1 - weightFactor) * getTotalPhi(r, indexZ) + weightFactor * getTotalPhi(r, indexZ + 1));
 }
 void PenningTrap::movePlasmas(double deltaT)
 {
