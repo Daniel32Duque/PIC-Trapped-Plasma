@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 18 Feb 2020
+Last modified on 04 Mar 2020
 
 Definitions for the Plasma class
 This file contains a corresponding source file.
@@ -150,6 +150,14 @@ void Plasma::extractPlasmaParameters(std::string fileName) const
 	newFile << chargeMacro;
 	newFile.close();
 }
+void Plasma::extractInitialDensity(std::string fileName) const
+{
+	Eigen::IOFormat fastFullPrecision(Eigen::FullPrecision, Eigen::DontAlignCols, "", "\n", "", "", "", "");
+	std::ofstream newFile;
+	newFile.open(fileName);
+	newFile << initialDensity.format(fastFullPrecision);
+	newFile.close();
+}
 void Plasma::extractHistory(std::string preName) const
 {
 	std::ofstream newPositions, newSpeeds;
@@ -177,6 +185,76 @@ double Plasma::getPotentialEnergy() const
 		potentialEnergy += phiHere * chargeMacro;
 	}
 	return potentialEnergy / 2;
+}
+void Plasma::estimateDensityProportions()
+{
+	int pointsZ = refTrap.Nz + 1;
+	int pointsR = refTrap.Nr;
+	//For each grid point, estimate density from Total Potential
+	for (int indexR = 0; indexR < pointsR; ++indexR)
+	{
+		double phiCentralR{ refTrap.getTotalPhi(indexR, refTrap.lengthTrap / 2) };
+		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
+		{
+			initialDensity.coeffRef(pointsZ * indexR + indexZ) = exp(-(charge / (KB * temperature)) * (refTrap.getTotalPhi(indexR, indexZ) - phiCentralR));
+		}
+	}
+}
+void Plasma::fitDensityProportionToProfile(double shape, double scale)//profile = exp(-(r/scale)^shape), No normalization required
+{
+	int pointsZ = refTrap.Nz + 1;
+	int pointsR = refTrap.Nr;
+	double hr{ refTrap.hr };
+	double hz{ refTrap.hz };
+	//For each grid point, estimate density from Total Potential
+	for (int indexR = 0; indexR < pointsR; ++indexR)
+	{
+		//Convert from volume density into flat space density
+		double profileAtR{ 0 };
+		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
+		{
+			profileAtR += initialDensity.coeffRef(pointsZ * indexR + indexZ) * hz;
+		}
+		double neededFactor{ exp(-pow((indexR * hr * 1000 / scale), shape)) / profileAtR }; //This 1000 is because the profile is given in milimeters
+		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
+		{
+			initialDensity.coeffRef(pointsZ * indexR + indexZ) *= neededFactor;
+		}
+	}
+}
+void Plasma::normalizeDensityToTotalCharge()
+{
+	int pointsZ = refTrap.Nz + 1;
+	int pointsR = refTrap.Nr;
+	double hr{ refTrap.hr };
+	double hz{ refTrap.hz };
+	//First calculate what the total charge is right now
+	double currentCharge{ 0 };
+	for (int indexR = 0; indexR < pointsR; ++indexR)
+	{
+		double volume; //Volume of the MacroRing
+		if (indexR == 0)
+		{
+			volume = PI * hz * hr * hr / 4;
+		}
+		else
+		{
+			volume = hz * hr * 2 * PI * indexR * hr;
+		}
+		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
+		{
+			currentCharge += initialDensity.coeffRef(pointsZ * indexR + indexZ) * volume;
+		}
+	}
+	//Now multiply every density by the appropriate correction to get the expected total charge
+	double correction{ totalCharge / currentCharge };
+	for (int indexR = 0; indexR < pointsR; ++indexR)
+	{
+		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
+		{
+			initialDensity.coeffRef(pointsZ * indexR + indexZ) *= correction;
+		}
+	}
 }
 void Plasma::saveState()
 {
@@ -232,4 +310,104 @@ void Plasma::loadSingleRing(double aChargeMacro, int r, double Z, double speed)
 	rings.clear();
 	rings.push_back(MacroRing(r, Z, speed));
 	solvePoisson();
+}
+void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape, double scale, int numMacro, double KSThreshold)
+{
+	//Check input makes sense
+	if (aTemperature <= 0 || shape <= 0 || scale <= 0)
+	{
+		throw std::logic_error("Temperature, shape, and scale all need to be positive");
+	}
+	if (aTotalCharge * charge < 0)
+	{
+		throw std::logic_error("Total charge and the plasma type charge must have the same sign");
+	}
+	if (KSThreshold <= 0 || KSThreshold >= 1)
+	{
+		throw std::logic_error("The Kolmogorov Smirnov distance threshold needs to be a number between 0 and 1");
+	}
+	temperature = aTemperature;
+	totalCharge = aTotalCharge;
+	chargeMacro = totalCharge / numMacro;
+	massMacro = mass * chargeMacro / charge;
+	rings.clear();
+	rings.reserve(numMacro);
+	//Iteratively solve the equilibrium density
+	initialDensity.setZero(refTrap.Nz * refTrap.Nr + refTrap.Nr);
+	//This is our first guess of the charge distribution
+	selfPotential = refTrap.solver.solve(initialDensity);
+	estimateDensityProportions();
+	fitDensityProportionToProfile(shape, scale);
+	normalizeDensityToTotalCharge();
+	//First estimate what the Pseudo Kolmogorov Smirnov distance is between the first and second guess
+	//This will give you an indication of how low or high the temperature is i.e. how much of the new guess would it be good to add into the previous guess
+	//At low temperatures you need to add less of the new estimate because the peaks are very narrow and everything starts to blow
+	//This Pseudo KS distance I made up is twice the normal KS distance, this is because I assume symmetry wrt centre of the trap, and I want to compare the difference in half the trap
+	//Solve Poisson's equation for the charge density
+	//Then estimate a thermal equilibrium density from that potential (normalized to totalCharge).
+	//Tune the obtained density according to the expected profile
+	//Combine this new estimate with the previous one. Linear combination with coefficients depend on the Kolmogorov Smirnov distance between the first and second guess
+	//Ugly for loop just to have the i let us know it is the first time inside
+	double KSCorrection{ 0 };
+	for (int i = 0; ; )
+	{
+		Eigen::VectorXd previousDensity(initialDensity);
+		//Format the density as the right hand side of Poissons equation
+		for (int j = 0; j < refTrap.Nz * refTrap.Nr + refTrap.Nr; ++j)
+		{
+			initialDensity.coeffRef(j) = -initialDensity.coeffRef(j) / epsilon;
+		}
+		//Obtain the next density guess
+		selfPotential = refTrap.solver.solve(initialDensity);
+		estimateDensityProportions();
+		fitDensityProportionToProfile(shape, scale);
+		normalizeDensityToTotalCharge();
+		//Compute the Kolmogorov Smirnov distance between both estimates
+		std::vector<double> oldDistribution, newDistribution; //Store here the 1D Distribution along z
+		double newInput{ 0 };
+		double oldInput{ 0 };
+		for (int indexZ = 0; indexZ < refTrap.Nz + 1; ++indexZ)
+		{
+			double volume;
+			for (int indexR = 0; indexR < refTrap.Nr; ++indexR)
+			{
+				if (indexR == 0)
+				{
+					volume = PI * refTrap.hz *  refTrap.hr *  refTrap.hr / 4;
+				}
+				else
+				{
+					volume = refTrap.hz *  refTrap.hr * 2 * PI * indexR *  refTrap.hr;
+				}
+				newInput += volume * initialDensity.coeffRef((refTrap.Nz + 1) * indexR + indexZ);
+				oldInput += volume * previousDensity.coeffRef((refTrap.Nz + 1) * indexR + indexZ);
+			}
+			newDistribution.push_back(newInput / totalCharge);
+			oldDistribution.push_back(oldInput / totalCharge);
+		}
+		double maxDistance{ 0 };
+		for (unsigned int h = 0; h < newDistribution.size(); ++h)
+		{
+			double test{ abs(newDistribution[h] - oldDistribution[h]) };
+			if (test > maxDistance)
+			{
+				maxDistance = test;
+			}
+		}
+		//If this is the first time running, set this as the correction factor.
+		if (i == 0)
+		{
+			++i;
+			//Pseudo KS distance, is just twice the amount because we assume symmetry along z wrt the centre of the trap so we only care about half the distribution
+			KSCorrection = 2 * maxDistance;
+		}
+		if (maxDistance < KSThreshold)
+		{
+			break;
+		}
+		//Now combine both the new and old density based on the KSCorrection
+		//This linear combinations retains the total integral and the profile
+		initialDensity = KSCorrection * previousDensity + (1 - KSCorrection) * initialDensity;
+	}
+	//Ok, now I have a density grid. I need now to populate macro-particles to match this grid density.
 }
