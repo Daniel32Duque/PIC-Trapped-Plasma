@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 04 Mar 2020
+Last modified on 06 Mar 2020
 
 Definitions for the Plasma class
 This file contains a corresponding source file.
@@ -8,9 +8,6 @@ This file contains a corresponding source file.
 #include"Plasma.hpp"
 
 MacroRing::MacroRing(int r, double z, double aSpeed) : posR(r), posZ(z), speed(aSpeed)
-{
-}
-MacroRing::~MacroRing()
 {
 }
 int MacroRing::getR() const
@@ -92,17 +89,8 @@ void Plasma::updateRHS()
 		int indexRHS{ (refTrap.Nz + 1) * indexR + indexZ };
 		double z{ aRing.getZ() - indexZ * hz };//Distance from left grid point to particle
 		double weightFactor{ z / hz };//Weight going to grid point on the right (number between 0 and 1)
-		double volume; //Volume of the MacroRing
-		if (indexR == 0)
-		{
-			volume = PI * hz * hr * hr / 4;
-		}
-		else
-		{
-			volume = hz * hr * 2 * PI * indexR * hr;
-		}
-		RHS.coeffRef(indexRHS) += -chargeMacro * (1 - weightFactor) / (volume * epsilon);//Point to the left
-		RHS.coeffRef(indexRHS + 1) += -chargeMacro * weightFactor / (volume * epsilon);//Point to the right
+		RHS.coeffRef(indexRHS) += -macroChargeDensity * (1 - weightFactor) / epsilon;//Point to the left
+		RHS.coeffRef(indexRHS + 1) += -macroChargeDensity * weightFactor / epsilon;//Point to the right
 	}
 }
 void Plasma::solvePoisson()
@@ -115,8 +103,7 @@ void Plasma::moveRings(double deltaT)
 	for (unsigned int i = 0; i < rings.size(); )
 	{
 		//Leapfrog method
-		double forceOld{ chargeMacro * refTrap.getEField(rings[i].getR(), rings[i].getZ()) };
-		double vNew{ deltaT * forceOld / massMacro + rings[i].getSpeed() };
+		double vNew{ deltaT * refTrap.getEField(rings[i].getR(), rings[i].getZ()) * charge / mass + rings[i].getSpeed() };
 		double zNew{ deltaT * vNew + rings[i].getZ() };
 		//remove elements than escape the trap
 		if (zNew < refTrap.getLength() && zNew > 0)
@@ -146,7 +133,6 @@ void Plasma::extractPlasmaParameters(std::string fileName) const
 	newFile.open(fileName);
 	newFile << mass << '\n';
 	newFile << charge << '\n';
-	newFile << massMacro << '\n';
 	newFile << chargeMacro;
 	newFile.close();
 }
@@ -176,13 +162,7 @@ double Plasma::getPotentialEnergy() const
 	double potentialEnergy{ 0 };
 	for (const MacroRing& aRing : rings)
 	{
-		int indexZ{ (int)floor(aRing.getZ() / refTrap.hz) };
-		double fieldLeft{ refTrap.getTotalPhi(aRing.getR(), indexZ) };
-		double fieldRight{ refTrap.getTotalPhi(aRing.getR(), indexZ + 1) };
-		double dz{ aRing.getZ() - indexZ * refTrap.hz };
-		double weightFactor{ dz / refTrap.hz };
-		double phiHere{ (1 - weightFactor) * fieldLeft + weightFactor * fieldRight };
-		potentialEnergy += phiHere * chargeMacro;
+		potentialEnergy += refTrap.getTotalPhi(aRing.getR(), aRing.getZ()) * (aRing.getR() == 0 ? chargeMacro : aRing.getR() * 8 * chargeMacro);
 	}
 	return potentialEnergy / 2;
 }
@@ -222,7 +202,7 @@ void Plasma::fitDensityProportionToProfile(double shape, double scale)//profile 
 		}
 	}
 }
-void Plasma::normalizeDensityToTotalCharge()
+void Plasma::normalizeDensityToTotalCharge(double totalCharge)
 {
 	int pointsZ = refTrap.Nz + 1;
 	int pointsR = refTrap.Nr;
@@ -270,19 +250,20 @@ void Plasma::reserve(int desired)
 		aRing.reserve(desired);
 	}
 }
-void Plasma::loadOneDUniform(int numMacro, double aChargeMacro, double lengthLine, int r)
+void Plasma::loadOneDUniform(int numMacro, double aTotalCharge, double lengthLine, int r)
 {
 	//Creates equally spaced charges at r = 0 along a centred line of length lengthLine
 	if (lengthLine >= refTrap.getLength() || r >= refTrap.Nr - 1)
 	{
 		throw std::logic_error("Length of charge must be less than the length of the trap and r inside the trap");
 	}
-	if (aChargeMacro * charge < 0)
+	if (aTotalCharge * charge < 0)
 	{
 		throw std::logic_error("Charge of MacroRing and the plasma type must have the same sign");
 	}
-	chargeMacro = aChargeMacro;
-	massMacro = mass * chargeMacro / charge;
+	aTotalCharge /= numMacro; //Charge of a single macro-ring
+	chargeMacro = r == 0 ? aTotalCharge : aTotalCharge / (8 * r);
+	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	rings.clear();
 	rings.reserve(numMacro);
 	//Divide lengthLine in numMacro + 1 cells, which corresponds to numMacro + 2 points
@@ -295,18 +276,18 @@ void Plasma::loadOneDUniform(int numMacro, double aChargeMacro, double lengthLin
 	}
 	solvePoisson();
 }
-void Plasma::loadSingleRing(double aChargeMacro, int r, double Z, double speed)
+void Plasma::loadSingleRing(double aTotalCharge, int r, double Z, double speed)
 {
 	if (Z >= refTrap.getLength() || Z <= 0 || r >= refTrap.Nr - 1)
 	{
 		throw std::logic_error("Input r,z is not inside the trap");
 	}
-	if (aChargeMacro * charge < 0)
+	if (aTotalCharge * charge < 0)
 	{
 		throw std::logic_error("Charge of MacroRing and the plasma type must have the same sign");
 	}
-	chargeMacro = aChargeMacro;
-	massMacro = mass * chargeMacro / charge;
+	chargeMacro = r == 0 ? aTotalCharge : aTotalCharge / (8 * r);
+	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	rings.clear();
 	rings.push_back(MacroRing(r, Z, speed));
 	solvePoisson();
@@ -327,18 +308,13 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 		throw std::logic_error("The Kolmogorov Smirnov distance threshold needs to be a number between 0 and 1");
 	}
 	temperature = aTemperature;
-	totalCharge = aTotalCharge;
-	chargeMacro = totalCharge / numMacro;
-	massMacro = mass * chargeMacro / charge;
-	rings.clear();
-	rings.reserve(numMacro);
 	//Iteratively solve the equilibrium density
 	initialDensity.setZero(refTrap.Nz * refTrap.Nr + refTrap.Nr);
 	//This is our first guess of the charge distribution
 	selfPotential = refTrap.solver.solve(initialDensity);
 	estimateDensityProportions();
 	fitDensityProportionToProfile(shape, scale);
-	normalizeDensityToTotalCharge();
+	normalizeDensityToTotalCharge(aTotalCharge);
 	//First estimate what the Pseudo Kolmogorov Smirnov distance is between the first and second guess
 	//This will give you an indication of how low or high the temperature is i.e. how much of the new guess would it be good to add into the previous guess
 	//At low temperatures you need to add less of the new estimate because the peaks are very narrow and everything starts to blow
@@ -361,7 +337,7 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 		selfPotential = refTrap.solver.solve(initialDensity);
 		estimateDensityProportions();
 		fitDensityProportionToProfile(shape, scale);
-		normalizeDensityToTotalCharge();
+		normalizeDensityToTotalCharge(aTotalCharge);
 		//Compute the Kolmogorov Smirnov distance between both estimates
 		std::vector<double> oldDistribution, newDistribution; //Store here the 1D Distribution along z
 		double newInput{ 0 };
@@ -382,8 +358,8 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 				newInput += volume * initialDensity.coeffRef((refTrap.Nz + 1) * indexR + indexZ);
 				oldInput += volume * previousDensity.coeffRef((refTrap.Nz + 1) * indexR + indexZ);
 			}
-			newDistribution.push_back(newInput / totalCharge);
-			oldDistribution.push_back(oldInput / totalCharge);
+			newDistribution.push_back(newInput / aTotalCharge);
+			oldDistribution.push_back(oldInput / aTotalCharge);
 		}
 		double maxDistance{ 0 };
 		for (unsigned int h = 0; h < newDistribution.size(); ++h)
@@ -410,4 +386,73 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 		initialDensity = KSCorrection * previousDensity + (1 - KSCorrection) * initialDensity;
 	}
 	//Ok, now I have a density grid. I need now to populate macro-particles to match this grid density.
+	//How many particles am I placing at each radial index
+	std::vector<std::vector<double>> cumulativeAtR;
+	for (int indexR = 0; indexR < refTrap.Nr; ++indexR)
+	{
+		std::vector<double> cumulative;
+		double volume;
+		if (indexR == 0)
+		{
+			volume = PI * refTrap.hz *  refTrap.hr *  refTrap.hr / 4;
+		}
+		else
+		{
+			volume = refTrap.hz *  refTrap.hr * 2 * PI * indexR *  refTrap.hr;
+		}
+		double aChargeR{ 0 };
+		for (int indexZ = 0; indexZ < refTrap.Nz + 1; ++indexZ)
+		{
+			aChargeR += volume * initialDensity.coeffRef((refTrap.Nz + 1) * indexR + indexZ);
+			cumulative.push_back(aChargeR);
+		}
+		cumulativeAtR.push_back(cumulative);
+	}
+	double futureMacroCharge{ cumulativeAtR[0].back() };
+	for (unsigned int i = 1; i < cumulativeAtR.size(); ++i)
+	{
+		futureMacroCharge += cumulativeAtR[i].back() / (8 * i);
+	}
+	chargeMacro = futureMacroCharge / numMacro;
+	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
+	std::vector<int> numAtR;
+	numAtR.push_back((int)round(cumulativeAtR[0].back() / chargeMacro));
+	for (unsigned int i = 1; i < cumulativeAtR.size(); ++i)
+	{
+		numAtR.push_back((int)round(cumulativeAtR[i].back() / (8 * i * chargeMacro)));
+	}
+	//Now I know how many particles I want to place at each radius.
+	//Distribute them using an inverse transform sampling
+	//But without any randomness, just equally space the uniform distribution
+	rings.clear();
+	rings.reserve(numMacro);//this is not exactly the number of particles we will load, but it is close
+	//Use std::random to produce boltzmann distributed speeds
+	//this are simply gaussian with the appropriate std deviation as we are looking at 1 dimension only
+	std::default_random_engine generator;
+	std::normal_distribution<double> distribution(0, sqrt(KB * aTemperature / mass));
+	double atZero;
+	for (int indexR = 0; indexR < refTrap.Nr; ++indexR)
+	{
+		double deltaQ{ cumulativeAtR[indexR].back() / (numAtR[indexR] + 1) };
+		double currentInvert{ deltaQ };
+		int currentIndex{ 0 };
+		while (abs(currentInvert) < abs(cumulativeAtR[indexR].back()))
+		{
+			while (abs(cumulativeAtR[indexR][currentIndex]) < abs(currentInvert))
+			{
+				currentIndex++;
+			}
+			//The point to invert is between currentIndex and currentIndex - 1
+			//Assume linear interpolation between this two points
+			double invertedPos{ (currentIndex - 1) * refTrap.hz + refTrap.hz * (currentInvert - cumulativeAtR[indexR][currentIndex - 1]) / (cumulativeAtR[indexR][currentIndex] - cumulativeAtR[indexR][currentIndex - 1]) };
+			rings.push_back(MacroRing(indexR, invertedPos, distribution(generator)));
+			currentInvert += deltaQ;
+		}
+		if (indexR == 0)
+		{
+			atZero = rings.size();
+		}
+	}
+	std::cout << "Loading " << rings.size() << " macro-particles from which " << atZero << " are at r=0.\n";
+	solvePoisson();
 }
