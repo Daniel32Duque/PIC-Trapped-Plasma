@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 06 Mar 2020
+Last modified on 07 Mar 2020
 
 Definitions for the Plasma class
 This file contains a corresponding source file.
@@ -430,29 +430,23 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 	//this are simply gaussian with the appropriate std deviation as we are looking at 1 dimension only
 	std::default_random_engine generator;
 	std::normal_distribution<double> distribution(0, sqrt(KB * aTemperature / mass));
-	double atZero;
 	for (int indexR = 0; indexR < refTrap.Nr; ++indexR)
 	{
 		double deltaQ{ cumulativeAtR[indexR].back() / (numAtR[indexR] + 1) };
-		double currentInvert{ deltaQ };
 		int currentIndex{ 0 };
-		while (abs(currentInvert) < abs(cumulativeAtR[indexR].back()))
+		for (int i = 0; i < numAtR[indexR]; ++i)
 		{
+			double currentInvert{ deltaQ * (i + 1) };
 			while (abs(cumulativeAtR[indexR][currentIndex]) < abs(currentInvert))
 			{
 				currentIndex++;
 			}
 			//The point to invert is between currentIndex and currentIndex - 1
 			//Assume linear interpolation between this two points
-			double invertedPos{ (currentIndex - 1) * refTrap.hz + refTrap.hz * (currentInvert - cumulativeAtR[indexR][currentIndex - 1]) / (cumulativeAtR[indexR][currentIndex] - cumulativeAtR[indexR][currentIndex - 1]) };
+			double invertedPos{ (currentIndex - 1) * refTrap.hz + refTrap.hz / 2 + refTrap.hz * (currentInvert - cumulativeAtR[indexR][currentIndex - 1]) / (cumulativeAtR[indexR][currentIndex] - cumulativeAtR[indexR][currentIndex - 1]) };
 			rings.push_back(MacroRing(indexR, invertedPos, distribution(generator)));
-			currentInvert += deltaQ;
-		}
-		if (indexR == 0)
-		{
-			atZero = rings.size();
 		}
 	}
-	std::cout << "Loading " << rings.size() << " macro-particles from which " << atZero << " are at r=0.\n";
+	std::cout << "Loading " << rings.size() << " macro-particles from which " << numAtR[0] << " are at r=0.\n";
 	solvePoisson();
 }
