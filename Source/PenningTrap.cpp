@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 04 Mar 2020
+Last modified on 11 Mar 2020
 
 Definitions for the Electrode and PenningTrap classes
 */
@@ -339,4 +339,5 @@ void PenningTrap::reserve(int desired)
 	{
 		aPlasma.reserve(desired);
 	}
+	potentialEnergiesHistory.reserve(desired);
 }
