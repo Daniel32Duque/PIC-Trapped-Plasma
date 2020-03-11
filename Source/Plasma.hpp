@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 06 Mar 2020
+Last modified on 11 Mar 2020
 
 Declarations for the Plasma class
 This file contains a corresponding source file.
@@ -69,6 +69,7 @@ public:
 	void extractSelfPotential(std::string fileName) const;//Store the potential field in a document called filename
 	void extractPlasmaParameters(std::string filename) const;//Extract the plasma parameters
 	void extractInitialDensity(std::string filename) const;//This is NOT the actual initial density obtained from macro-Particles. This is the EXPECTED initial density
+	int getNumMacro() const;//Return the current number of macro-particles still in the trap
 	//Loading routines
 	/*----------------------------------------------------------------------------------
 	These routines below are the only thing that you should change/add to the code.
@@ -87,6 +88,8 @@ public:
 	void loadOneDUniform(int numMacro, double totalCharge, double lengthLine, int r); //equally spaced particles at fixed r in a length centred in the center of the trap.
 	void loadSingleRing(double totalCharge, int r, double Z, double speed); //Single ring at a position with a velocity
 	void loadProfile(double aTemperature, double totalCharge, double shape, double scale, int numMacro, double KSThreshold); //Load using a density profile (as obtained from MCP), shape and scale define the generalized normal fit. Assume local thermal equilibrium along each radius
+	void loadDensityFile(std::string fileName, double aTemperature, int numMacro);
+
 };
 
 #endif
