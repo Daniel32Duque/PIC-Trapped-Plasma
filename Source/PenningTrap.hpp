@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 18 Feb 2020
+Last modified on 06 Mar 2020
 
 Declarations for the Electrode and PenningTrap classes
 This file contains a corresponding source file.
@@ -57,6 +57,7 @@ private:
 	double getEField(int r, int z); //Get E field at one of the grid points
 	double getEField(int r, double z); //Get field anywhere, based on E field at neighbour grid points.
 	double getTotalPhi(int r, int z) const; //Get the sum of the potential fields of the trap plus all the plasmas in a grid point
+	double getTotalPhi(int r, double z) const; //Total sum of Phi anywhere
 	
 public:
 	PenningTrap(double radius, const std::vector<Electrode>& theElectrodes, const std::vector<double>& theGaps, int NumCellsZ, int NumCellsR);
