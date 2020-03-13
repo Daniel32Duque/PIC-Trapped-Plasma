@@ -1,9 +1,8 @@
 /*
 Written by: Daniel Duque
-Last modified on 11 Mar 2020
+Last modified on 13 Mar 2020
 
 Definitions for the Plasma class
-This file contains a corresponding header file.
 */
 #include"Plasma.hpp"
 
@@ -180,7 +179,14 @@ void Plasma::estimateDensityProportions()
 		double phiCentralR{ refTrap.getTotalPhi(indexR, refTrap.lengthTrap / 2) };
 		for (int indexZ = 0; indexZ < pointsZ; ++indexZ)
 		{
-			initialDensity.coeffRef(pointsZ * indexR + indexZ) = exp(-(charge / (KB * temperature)) * (refTrap.getTotalPhi(indexR, indexZ) - phiCentralR));
+			if (indexZ < refTrap.limitLeft[indexR] || indexZ > refTrap.limitRight[indexR])
+			{
+				initialDensity.coeffRef(pointsZ * indexR + indexZ) = 0;
+			}
+			else
+			{
+				initialDensity.coeffRef(pointsZ * indexR + indexZ) = exp(-(charge / (KB * temperature)) * (refTrap.getTotalPhi(indexR, indexZ) - phiCentralR));
+			}		
 		}
 	}
 }
