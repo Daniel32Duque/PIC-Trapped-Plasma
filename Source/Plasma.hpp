@@ -1,9 +1,8 @@
 /*
 Written by: Daniel Duque
-Last modified on 11 Mar 2020
+Last modified on 13 Mar 2020
 
 Declarations for the Plasma class
-This file contains a corresponding source file.
 */
 
 #ifndef PLASMA_HPP
