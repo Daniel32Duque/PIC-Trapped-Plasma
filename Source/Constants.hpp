@@ -1,9 +1,8 @@
 /*
 Written by: Daniel Duque
-Last modified on 06 Mar 2020
+Last modified on 13 Mar 2020
 
-Declarations for the Plasma class
-This file contains a corresponding source file.
+Constants needed throughout the different files
 */
 
 #ifndef CONSTANTS_HPP
