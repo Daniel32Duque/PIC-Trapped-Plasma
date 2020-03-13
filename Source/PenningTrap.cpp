@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 11 Mar 2020
+Last modified on 13 Mar 2020
 
 Definitions for the Electrode and PenningTrap classes
 */
@@ -56,6 +56,38 @@ PenningTrap::PenningTrap(double radius, const std::vector<Electrode>& theElectro
 	solver.analyzePattern(coefficients);
 	solver.factorize(coefficients);
 	solveLaplace();
+	//Now find the limit left and right indices for the "hole" where the plasma is going to be trapped initially
+	//This is needed for the initial equilibrium solver
+	//Because if the ends of the trap are grounded, then the trap thinks that these are "holes" that need to be filled with charge
+	//This tells you the index of the closest grid point to the left of the centre of the trap
+	int indexZ{ (int)floor(lengthTrap / (2 * hz)) };
+	//Now starte moving to the left, and to the right, until the potential stops increasing/decreasing, this would tell you where the limits of your "hole" is
+	//Move to the right
+	for (int indexR = 0; indexR < Nr; ++indexR)
+	{
+		int limit = indexZ + 1;
+		double change{ potentialsVector.coeffRef((Nz + 1) * indexR + limit + 1) - potentialsVector.coeffRef((Nz + 1) * indexR + limit) };
+		double changeTwo;
+		do
+		{
+			++limit;
+			changeTwo = potentialsVector.coeffRef((Nz + 1) * indexR + limit + 1) - potentialsVector.coeffRef((Nz + 1) * indexR + limit);
+		} while (change * changeTwo > 0 && limit + 1 < Nz);
+		limitRight.push_back(limit);
+	}
+	//Similar for the left
+	for (int indexR = 0; indexR < Nr; ++indexR)
+	{
+		int limit = indexZ;
+		double change{ potentialsVector.coeffRef((Nz + 1) * indexR + limit - 1) - potentialsVector.coeffRef((Nz + 1) * indexR + limit) };
+		double changeTwo;
+		do
+		{
+			--limit;
+			changeTwo = potentialsVector.coeffRef((Nz + 1) * indexR + limit - 1) - potentialsVector.coeffRef((Nz + 1) * indexR + limit);
+		} while (change * changeTwo > 0 && limit - 1 > 0);
+		limitLeft.push_back(limit);
+	}
 }
 PenningTrap::~PenningTrap()
 {}
