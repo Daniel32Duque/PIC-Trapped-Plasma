@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 13 Mar 2020
+Last modified on 16 Mar 2020
 
 Declarations for the Electrode and PenningTrap classes
 This file contains a corresponding source file.
@@ -13,6 +13,7 @@ This file contains a corresponding source file.
 #include<Eigen/SparseLU>
 #include<fstream>
 #include<unordered_map>
+#include<iomanip>
 
 class Plasma;
 
@@ -74,6 +75,7 @@ public:
 	double getRadius() const;
 	void movePlasmas(double deltaT); //Move all plasmas in the trap by a time deltaT
 	void saveStates(double aTime); //Store the states of all plasmas
+	void saveStates(double aTime, int indexR); //Store the states of all plasmas just at a given R (They all still move, but I only store a single R for analysis later)
 	void reserve(int desired); //Reserve how many times are you going to save the states of all plasmas. Use it if you will store a lot of times
 };
 #endif
