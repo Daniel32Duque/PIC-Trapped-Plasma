@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 13 Mar 2020
+Last modified on 16 Mar 2020
 
 Declarations for the Plasma class
 */
@@ -46,6 +46,7 @@ private:
 	const double charge; //Not the net charge of the plasma. It is the charge of the particle that forms the plasma. (In Coulombs)
 	double chargeMacro; //Charge of macro ring at r=0. The charge of a general macro ring at a given r is given by (indexR == 0 ? macroCharge : 8 * indexR * macroCharge)
 	double macroChargeDensity; //Charge increases in the same proportion as volume along r. Each macroparticle has a fixed charge density in Coulombs per meter cubed
+	double massMacro; //Mass of macro ring at r=0. The mass of a general macro ring at a given r is given by (indexR == 0 ? macroMass : 8 * indexR * macroMass)
 	std::vector<MacroRing> rings; //All macro-Rings of a given plasma are stored here
 	double temperature; //In Kelvin
 	Eigen::VectorXd selfPotential{ refTrap.Nz * refTrap.Nr + refTrap.Nr };
@@ -54,6 +55,7 @@ private:
 	void solvePoisson();
 	void moveRings(double deltaT); //Move all particles by deltaT seconds
 	void saveState(); //Store state of each of the rings
+	void saveState(int indexR); //Store state of each of the rings at a given R
 	void reserve(int desired);
 	void extractHistory(std::string preName) const;
 	double getPotentialEnergy() const;
@@ -69,6 +71,9 @@ public:
 	void extractPlasmaParameters(std::string filename) const;//Extract the plasma parameters
 	void extractInitialDensity(std::string filename) const;//This is NOT the actual initial density obtained from macro-Particles. This is the EXPECTED initial density
 	int getNumMacro() const;//Return the current number of macro-particles still in the trap
+	int getNumMacroCentralWell() const;//Number of macro particles within this region of the trap (well in the centre)
+	double getAverageTemperature() const;//Return the average temperature over the entire saved states.
+	double getTemperature() const;//Return the temperature using just the last 2 stored speeds (need 2 because remember speed and position are shifted by dt/2)
 	//Loading routines
 	/*----------------------------------------------------------------------------------
 	These routines below are the only thing that you should change/add to the code.
