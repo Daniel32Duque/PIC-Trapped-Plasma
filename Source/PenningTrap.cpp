@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 13 Mar 2020
+Last modified on 16 Mar 2020
 
 Definitions for the Electrode and PenningTrap classes
 */
@@ -254,6 +254,7 @@ void PenningTrap::extractPlasmasHistories(std::string pathAndPreName) const
 {
 	std::ofstream newFile;
 	newFile.open(pathAndPreName + "Times.csv");
+	newFile << std::setprecision(std::numeric_limits<double>::digits10);
 	for (unsigned int i = 0; i < timesSaved.size(); ++i)
 	{
 		newFile << timesSaved[i];
@@ -265,6 +266,7 @@ void PenningTrap::extractPlasmasHistories(std::string pathAndPreName) const
 	newFile.close();
 	//Now extract the total potential energy
 	newFile.open(pathAndPreName + "PotentialEnergies.csv");
+	newFile << std::setprecision(std::numeric_limits<double>::digits10);
 	for (unsigned int i = 0; i < potentialEnergiesHistory.size(); ++i)
 	{
 		newFile << potentialEnergiesHistory[i];
@@ -286,10 +288,16 @@ void PenningTrap::extractTrapParameters(std::string filename) const
 {
 	std::ofstream newFile;
 	newFile.open(filename);
+	newFile << std::setprecision(std::numeric_limits<double>::digits10);
 	newFile << trapRadius << '\n';
 	for (unsigned int i = 0; i < electrodes.size(); ++i)
 	{
 		newFile << electrodes[i].getLength();
+		i < electrodes.size() - 1 ? newFile << ',' : newFile << '\n';
+	}
+	for (unsigned int i = 0; i < electrodes.size(); ++i)
+	{
+		newFile << electrodes[i].getPotential();
 		i < electrodes.size() - 1 ? newFile << ',' : newFile << '\n';
 	}
 	for (unsigned int i = 0; i < gaps.size(); ++i)
@@ -360,6 +368,17 @@ void PenningTrap::saveStates(double aTime)
 	for (Plasma& aPlasma : plasmas)
 	{
 		aPlasma.saveState();
+		potentialEnergy += aPlasma.getPotentialEnergy();
+	}
+	potentialEnergiesHistory.push_back(potentialEnergy);
+}
+void PenningTrap::saveStates(double aTime, int indexR)
+{
+	timesSaved.push_back(aTime);
+	double potentialEnergy{ 0 };
+	for (Plasma& aPlasma : plasmas)
+	{
+		aPlasma.saveState(indexR);
 		potentialEnergy += aPlasma.getPotentialEnergy();
 	}
 	potentialEnergiesHistory.push_back(potentialEnergy);
