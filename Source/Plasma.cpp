@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 13 Mar 2020
+Last modified on 16 Mar 2020
 
 Definitions for the Plasma class
 */
@@ -130,6 +130,7 @@ void Plasma::extractPlasmaParameters(std::string fileName) const
 {
 	std::ofstream newFile;
 	newFile.open(fileName);
+	newFile << std::setprecision(std::numeric_limits<double>::digits10);
 	newFile << mass << '\n';
 	newFile << charge << '\n';
 	newFile << chargeMacro;
@@ -147,11 +148,66 @@ int Plasma::getNumMacro() const
 {
 	return rings.size();
 }
+int Plasma::getNumMacroCentralWell() const
+{
+	int numIn{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		if (aRing.posZ >= refTrap.limitLeft[aRing.posR] * refTrap.hz && aRing.posZ <= refTrap.limitRight[aRing.posR] * refTrap.hz)
+		{
+			++numIn;
+		}
+	}
+	return numIn;
+}
+double Plasma::getAverageTemperature() const
+{
+	double T{ 0 };
+	//Number of speeds stored minus one (need to average with next one, so ignore the last one)
+	int times{ (int)rings[0].historySpeed.size() - 1};
+	double numParticles{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+		numParticles += aMass / mass;
+	}
+	for (int i = 0; i < times; ++i)
+	{
+		double KE{ 0 };
+		for (const MacroRing& aRing : rings)
+		{
+			double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+			double speed{ (aRing.historySpeed[i] + aRing.historySpeed[i + 1]) / 2 };
+			KE += 0.5 * aMass * speed * speed;
+		}
+		T += 2 * KE / (KB * numParticles);
+	}
+	return T / times;
+}
+double Plasma::getTemperature() const
+{
+	double numParticles{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+		numParticles += aMass / mass;
+	}
+	double KE{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+		double speed{ (aRing.historySpeed.end()[-2] + aRing.historySpeed.back()) / 2 };
+		KE += 0.5 * aMass * speed * speed;
+	}
+	return 2 * KE / (KB * numParticles);
+}
 void Plasma::extractHistory(std::string preName) const
 {
 	std::ofstream newPositions, newSpeeds;
 	newPositions.open(preName + "Positions" + name + ".csv");
+	newPositions << std::setprecision(std::numeric_limits<double>::digits10);
 	newSpeeds.open(preName + "Speeds" + name + ".csv");
+	newSpeeds << std::setprecision(std::numeric_limits<double>::digits10);
 	for (const MacroRing& aRing : rings)
 	{
 		aRing.printPositions(newPositions);
@@ -253,6 +309,16 @@ void Plasma::saveState()
 		aRing.saveState();
 	}
 }
+void Plasma::saveState(int indexR)
+{
+	for (MacroRing& aRing : rings)
+	{
+		if (aRing.getR() == indexR)
+		{
+			aRing.saveState();
+		}
+	}
+}
 void Plasma::reserve(int desired)
 {
 	for (MacroRing& aRing : rings)
@@ -276,7 +342,8 @@ void Plasma::loadOneDUniform(int numMacro, double aTotalCharge, double lengthLin
 		throw std::logic_error("Number of macro-particles has to be a positive integer");
 	}
 	aTotalCharge /= numMacro; //Charge of a single macro-ring
-	chargeMacro = r == 0 ? aTotalCharge : aTotalCharge / (8 * r);
+	chargeMacro = (r == 0 ? aTotalCharge : aTotalCharge / (8 * r));
+	massMacro = chargeMacro * mass / charge;
 	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	rings.clear();
 	rings.reserve(numMacro);
@@ -301,6 +368,7 @@ void Plasma::loadSingleRing(double aTotalCharge, int r, double Z, double speed)
 		throw std::logic_error("Charge of MacroRing and the plasma type must have the same sign");
 	}
 	chargeMacro = r == 0 ? aTotalCharge : aTotalCharge / (8 * r);
+	massMacro = chargeMacro * mass / charge;
 	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	rings.clear();
 	rings.push_back(MacroRing(r, Z, speed));
@@ -432,6 +500,7 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 		futureMacroCharge += cumulativeAtR[i].back() / (8 * i);
 	}
 	chargeMacro = futureMacroCharge / numMacro;
+	massMacro = chargeMacro * mass / charge;
 	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	std::vector<int> numAtR;
 	numAtR.push_back((int)round(cumulativeAtR[0].back() / chargeMacro));
@@ -525,6 +594,7 @@ void Plasma::loadDensityFile(std::string fileName, double aTemperature, int numM
 		futureMacroCharge += cumulativeAtR[i].back() / (8 * i);
 	}
 	chargeMacro = futureMacroCharge / numMacro;
+	massMacro = chargeMacro * mass / charge;
 	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
 	std::vector<int> numAtR;
 	numAtR.push_back((int)round(cumulativeAtR[0].back() / chargeMacro));
