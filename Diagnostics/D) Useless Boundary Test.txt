@@ -1,0 +1,145 @@
+/*
+Written by: Daniel Duque
+Last modified on 14 Mar 2020
+*/
+#include"PenningTrap.hpp"
+#include"Plasma.hpp"
+#include"Constants.hpp"
+#include<vector>
+#include<fstream>
+#include<iomanip>
+#include<iostream>
+
+/*
+This is the fourth step in a simple Ekick study.
+This will run the plasma in equilibrium inside the static trap
+
+With the Python codes we will be able to see how the plasma evolves under these parameters
+We would expect, for example, to observe a constant temperature evolution
+And stable orbits in phase space
+
+There will be some oscillations and discrepancies, but we don´t need to have 100% real simulation
+We just need to be happy enough with the simulation i.e. things don´t blow up
+Remain in same orders of magnitudes, a visual "equilibrium", etc.
+*/
+
+double changedVoltage(double Vi, double Vf, double duration, double compression, double t);
+
+int main(void)
+{
+	/*-------------------------
+	Input
+	---------------------------*/
+
+	//Ekick parameters
+	double vDown{ -51 };
+	double infTime{ 80e-9 };
+	int indexElectrodDropping{ 1 };
+
+	//Where are all the parameters?:
+	std::string path{ "./Simple Ekick/Define Parameters/Data Files/" };
+	std::string trapParameters{ "Z Trap Parameters.csv" };
+	std::string electronDensity{ "Z Expected Electron Density.csv" };
+	std::string antiprotonDensity{ "Z Expected Antiproton Density.csv" };
+	std::string trapPotential{ "Z Trap Potential.csv" };
+	std::string theTemperature{ "Z Temperature.txt" };
+	std::string numMacroParticles{ "Z NumOfMacros.txt" };
+	std::string theDeltaT{ "Z deltaT.txt" };
+
+	/*-------------------------
+	End of Input
+	---------------------------*/
+
+	int  Nz, Nr;
+	double trapRadius, temperature, aNumber, deltaT;
+	int numMacroElectrons, numMacroAntiprotons;
+	char comma;
+
+	//Read temperature
+	std::ifstream rFile(path + theTemperature);
+	rFile >> temperature;
+	rFile.close();
+
+	//Read deltaT
+	rFile.open(path + theDeltaT);
+	rFile >> deltaT;
+	rFile.close();
+
+	//Read number of macroparticles used
+	rFile.open(path + numMacroParticles);
+	rFile >> numMacroElectrons >> comma >> numMacroAntiprotons;
+	rFile.close();
+
+	//Generate the trap
+	rFile.open(path + trapParameters);
+	rFile >> trapRadius >> comma;
+	//Create Electrodes
+	//First get length of electrodes
+	std::string aLine;
+	std::getline(rFile, aLine);
+	std::stringstream ss(aLine);
+	std::vector<double> lengths;
+	while (ss >> aNumber)
+	{
+		lengths.push_back(aNumber);
+		ss >> comma;
+	}
+	//Now get the voltages
+	std::getline(rFile, aLine);
+	std::stringstream ss2(aLine);
+	std::vector<double> voltages;
+	while (ss2 >> aNumber)
+	{
+		voltages.push_back(aNumber);
+		ss2 >> comma;
+	}
+	//Now get the gaps
+	std::getline(rFile, aLine);
+	std::stringstream ss3(aLine);
+	std::vector<double> gaps;
+	while (ss3 >> aNumber)
+	{
+		gaps.push_back(aNumber);
+		ss3 >> comma;
+	}
+	std::vector<Electrode> trapElectrodes;
+	for (unsigned int i = 0; i < lengths.size(); ++i)
+	{
+		trapElectrodes.push_back(Electrode(lengths[i], voltages[i]));
+	}
+	rFile >> Nz >> comma >> Nr >> comma;
+
+	PenningTrap theTrap(trapRadius, trapElectrodes, gaps, Nz, Nr);
+	Plasma electronPlasma(theTrap, "Electrons", massE, -ePos);
+	electronPlasma.loadDensityFile(path + electronDensity, temperature, numMacroElectrons);
+	Plasma antiprotonPlasma(theTrap, "Antiprotons", massP, -ePos);
+	antiprotonPlasma.loadDensityFile(path + antiprotonDensity, temperature, numMacroAntiprotons);
+
+	int initiallyE{ electronPlasma.getNumMacro() };
+
+	for (int i = 1; i * deltaT <= 10e-9; ++i)
+	{
+		theTrap.setPotential(1, changedVoltage(-70, vDown, 10e-9, 4.5, i * deltaT));
+		theTrap.movePlasmas(deltaT);
+	}
+	theTrap.setPotential(1, vDown);
+	for (int i = 1; i * deltaT <= infTime; ++i)
+	{
+		theTrap.movePlasmas(deltaT);
+	}
+	for (int i = 1; i * deltaT <= 10e-9; ++i)
+	{
+		theTrap.setPotential(1, changedVoltage(vDown, -70, 10e-9, 4.5, i * deltaT));
+		theTrap.movePlasmas(deltaT);
+	}
+
+	std::cout << "Electrons Removed = " << (double)(initiallyE - electronPlasma.getNumMacroCentralWell()) * 100 / initiallyE << '%';
+	std::cin.get();
+
+	return 0;
+}
+
+double changedVoltage(double Vi, double Vf, double duration, double compression, double t)
+{
+	return (Vf - Vi) * pow(1 + exp(-(t - duration / 2) * compression * 2 / duration), -1) + Vi;
+}

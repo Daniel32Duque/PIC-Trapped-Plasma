@@ -1,0 +1,115 @@
+/*
+Written by: Daniel Duque
+Last modified on 14 Mar 2020
+*/
+#include"PenningTrap.hpp"
+#include"Plasma.hpp"
+#include"Constants.hpp"
+#include<vector>
+#include<fstream>
+#include<iomanip>
+#include<iostream>
+
+/*
+This is the first step in a simple Ekick study.
+From this script + MATLAB's ACodePlotExpectedDensities
+We should make a first estimate on how many grid cells to use
+And what time step would be appropriate to use
+
+Obtain the initial expected density distribution for electrons and antiprotons.
+Assume they both follow the same profile
+Obtain the initial electrostatic potential of the trap
+
+How are we going to achieve this?
+Set the input, and a random number of cells Nz, Nr (100 each would be fine)
+Then run ACodePlotTrapPotential.m and see if the generated trap is what you expected
+Then run ACodePlotExpectedDensities.m
+This would give you the first guess of what the initial density of electrons and antiprotons looks like
+This also tells you how many grids you should use (minimum) to resolve the debye length
+
+Change Nz and Nr to the suggestion from the matlab code, and re-run both.
+Repeat until you are using here the same suggestion that MATLAB code gives you (round up).
+
+What does this mean?
+We are now using enough grids along z and r to resolve the debye length of the plasma
+
+This is just a suggestion (a first guess), we can change this to whatever we want really.
+*/
+
+int main(void)
+{
+	/*-------------------------
+	Input
+	---------------------------*/
+
+	//Simulation Plasma Parameters
+	double temperature{ 150 };
+	int numElectrons{ 150000 };//Total number of real electrons in the trap	
+	int numAntiprotons{ 100000 };//Total number of real antiprotons in the trap
+	double shape{ 3.549 };//MCP profile: exp(-(r/scale)^shape)
+	double scale{ 0.6 };//MCP profile: exp(-(r/scale)^shape)
+
+	//Threshold to stop iteration. Lower = more accurate. 
+	//Advice -> Start with 1e-4 and go down in factors of 10 until you are confortable with the output.
+	double KSThreshold{ 1e-13 };
+
+	//Trap Parameters
+	int Nz{ 585 };//Number of grids along z
+	int Nr{ 128 };//Number of grids along r
+	double trapRadius{ 0.01488 };
+	//Create the trap however you want. Need a vector of electrodes and gaps
+	double aLength{ 0.01322 };
+	double aGap{ 0.0005 };
+	std::vector<Electrode> trapElectrodes;
+	trapElectrodes.push_back(Electrode(aLength, 0));
+	trapElectrodes.push_back(Electrode(aLength, -70));
+	trapElectrodes.push_back(Electrode(aLength, -15));
+	trapElectrodes.push_back(Electrode(aLength, -70));
+	trapElectrodes.push_back(Electrode(aLength, 0));
+	std::vector<double> trapGaps(4, aGap);
+
+	//Where to store the files:
+	std::string path{ "./Simple Ekick/Define Parameters/Data Files/" };
+	std::string electronDensity{ "Z Expected Electron Density.csv" };
+	std::string antiprotonDensity{ "Z Expected Antiproton Density.csv" };
+	std::string trapPotential{ "Z Trap Potential.csv" };
+	std::string trapParameters{ "Z Trap Parameters.csv" };
+	std::string theTemperature{ "Z Temperature.txt" };
+
+	//A random name that doesnt exist, this will be created and deleted
+	std::string fileThatDoesntExist{ "brtu1imaolrau2yp3rcody.csv" };
+
+	/*-------------------------
+	End of Input
+	---------------------------*/
+
+	//Load electrons and antiprotons together as just electrons to find "charge equilibrium"
+	PenningTrap theTrap(trapRadius, trapElectrodes, trapGaps, Nz, Nr);
+	Plasma electronPlasma(theTrap, "Electrons", massE, -ePos);
+	electronPlasma.loadProfile(temperature, -ePos * (numElectrons + numAntiprotons), shape, scale, 1, KSThreshold);
+	electronPlasma.extractInitialDensity(fileThatDoesntExist);//Very unlikely to exist. This will just be deleted.
+	theTrap.extractTrapPotential(path + trapPotential);
+	theTrap.extractTrapParameters(path + trapParameters);
+
+	std::ofstream fileTemperatures;
+	fileTemperatures.open(path + theTemperature);
+	fileTemperatures << temperature;
+	//Then, from this charge, take the apropriate proportion of each species
+	std::ofstream fileElectrons;
+	fileElectrons.open(path + electronDensity);
+	std::ofstream fileAntiprotons;
+	fileAntiprotons.open(path + antiprotonDensity);
+
+	double eRatio{ (double)numElectrons / (numElectrons + numAntiprotons) };
+	double readNumber;
+	std::ifstream rFile(fileThatDoesntExist);
+	while (rFile >> readNumber)
+	{
+		fileElectrons << readNumber * eRatio << '\n';
+		fileAntiprotons << (1 - eRatio) * readNumber << '\n';
+	}
+	rFile.close();
+	remove(fileThatDoesntExist.c_str());
+
+	return 0;
+}

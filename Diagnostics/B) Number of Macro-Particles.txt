@@ -1,0 +1,125 @@
+/*
+Written by: Daniel Duque
+Last modified on 16 Mar 2020
+*/
+#include"PenningTrap.hpp"
+#include"Plasma.hpp"
+#include"Constants.hpp"
+#include<vector>
+#include<fstream>
+#include<iomanip>
+#include<iostream>
+
+/*
+This is the second step in a simple Ekick study.
+From this script + MATLAB's BCodePlotMacroDensityAndCompare.m
+We should make a first estimate on how many macro-particles to use for electrons and anti-protons
+(may be different for both)
+
+Obtain the initial density distribution for electrons and antiprotons.
+Loaded from the profile in the previous step with the thermal equilibrium solver
+
+How are we going to achieve this?
+Set the input, try 100 macro-particles for each for example as a starting point and see how things look (most likely they look bad)
+Then run BCodePlotMacroDensityAndCompare.m
+This will show you how the distribution looks like for the number of macro-particles you are loading
+This will also show you how this compares to the expected thermal equilibrium density obtained in the previous step.
+
+Change the number of macro-particles for each species, and re-run both the C++ and then the MATLAB file.
+Repeat until you are happy with how the macro-particle distribution looks like, and you are happy with how this compares to the needed distribution.
+
+When should you be happy?
+This really depends on what you want to simulate
+*/
+
+int main(void)
+{
+	/*-------------------------
+	Input
+	---------------------------*/
+
+	//How many macro-particles do you want to load?
+	int numMacroElectrons{ 4000 };
+	int numMacroAntiprotons{ 4000 };
+
+	//Where are all the parameters?:
+	std::string path{ "./Simple Ekick/Define Parameters/Data Files/" };
+	std::string trapParameters{ "Z Trap Parameters.csv" };
+	std::string electronDensity{ "Z Expected Electron Density.csv" };
+	std::string antiprotonDensity{ "Z Expected Antiproton Density.csv" };
+	std::string trapPotential{ "Z Trap Potential.csv" };
+	std::string theTemperature{ "Z Temperature.txt" };
+
+	//Save the number of macro-particles. 0 coding tutorial, make it easier to test things
+	std::string numMacroParticles{ "Z NumOfMacros.txt" };
+
+	/*-------------------------
+	End of Input
+	---------------------------*/
+
+	std::ofstream fileMacro;
+	fileMacro.open(path + numMacroParticles);
+	fileMacro << numMacroElectrons << ',' << numMacroAntiprotons;
+
+	int  Nz, Nr;
+	double trapRadius, temperature, aNumber;
+	char comma;
+
+	//Read temperature
+	std::ifstream rFile(path + theTemperature);
+	rFile >> temperature;
+	rFile.close();
+
+	//Generate the trap
+	rFile.open(path + trapParameters);
+	rFile >> trapRadius >> comma;
+	//Create Electrodes
+	//First get length of electrodes
+	std::string aLine;
+	std::getline(rFile, aLine);
+	std::stringstream ss(aLine);
+	std::vector<double> lengths;
+	while (ss >> aNumber)
+	{
+		lengths.push_back(aNumber);
+		ss >> comma;
+	}
+	//Now get the voltages
+	std::getline(rFile, aLine);
+	std::stringstream ss2(aLine);
+	std::vector<double> voltages;
+	while (ss2 >> aNumber)
+	{
+		voltages.push_back(aNumber);
+		ss2 >> comma;
+	}
+	//Now get the gaps
+	std::getline(rFile, aLine);
+	std::stringstream ss3(aLine);
+	std::vector<double> gaps;
+	while (ss3 >> aNumber)
+	{
+		gaps.push_back(aNumber);
+		ss3 >> comma;
+	}
+	std::vector<Electrode> trapElectrodes;
+	for (unsigned int i = 0; i < lengths.size(); ++i)
+	{
+		trapElectrodes.push_back(Electrode(lengths[i], voltages[i]));
+	}
+	rFile >> Nz >> comma >> Nr >> comma;
+
+	//Create the trap
+	PenningTrap theTrap(trapRadius, trapElectrodes, gaps, Nz, Nr);
+	//Now load the plasmas with a given number of macro-particles
+	Plasma electronPlasma(theTrap, "Electrons", massE, -ePos);
+	electronPlasma.loadDensityFile(path + electronDensity, temperature, numMacroElectrons);
+	Plasma antiprotonPlasma(theTrap, "Antiprotons", massP, -ePos);
+	antiprotonPlasma.loadDensityFile(path + antiprotonDensity, temperature, numMacroAntiprotons);
+	theTrap.saveStates(0);
+	theTrap.extractPlasmasHistories(path + "Z ");
+	electronPlasma.extractPlasmaParameters(path + "Z Electron Parameters.csv");
+	antiprotonPlasma.extractPlasmaParameters(path + "Z Antiproton Parameters.csv");
+	std::cin.get();
+	return 0;
+}

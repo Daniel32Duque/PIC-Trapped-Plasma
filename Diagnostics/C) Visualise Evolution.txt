@@ -1,0 +1,190 @@
+/*
+Written by: Daniel Duque
+Last modified on 14 Mar 2020
+*/
+#include"PenningTrap.hpp"
+#include"Plasma.hpp"
+#include"Constants.hpp"
+#include<vector>
+#include<fstream>
+#include<iomanip>
+#include<iostream>
+
+/*
+This is the third step in a simple Ekick study.
+This will run the plasma in equilibrium inside the static trap
+
+With the Python codes we will be able to see how the plasma evolves under these parameters
+We would expect, for example, to observe a constant temperature evolution
+And stable orbits in phase space
+
+There will be some oscillations and discrepancies, but we don´t need to have 100% real simulation
+We just need to be happy enough with the simulation i.e. things don´t blow up
+Remain in same orders of magnitudes, a visual "equilibrium", etc.
+*/
+
+int main(void)
+{
+	/*-------------------------
+	Input
+	---------------------------*/
+
+	//How do you want to evolve the simulation?
+	//The period, at least as first guess (likely wont change) use the period output from the first step
+	double Period{ 2e-8 }; //This should be in seconds
+	int stepsPerPeriod{ 35 }; //35 is a good number, unlikely to change this.
+	double simulationTime{ 1e-7 };//What is the timescale of interest of your simulation. For an ekick we usually want to look e.g. 100ns evolution
+
+	//What r index would you like to see evolving?
+	//This is just for a gif animation using the python script
+	//The temperature obtained using CodePlotXvsY corresponds to the total plasma, not just this single r.
+	int r{ 0 };
+
+	//Where to store the new data
+	std::string electronTempFile{ "Z Electron Temperature Evolution.csv" };
+	std::string antiprotonTempFile{ "Z Antiproton Temperature Evolution.csv" };
+	std::string theR{ "Z rIndex.txt" };
+	std::string theDeltaT{ "Z deltaT.txt" };
+
+	//Where are all the parameters?:
+	std::string path{ "./Simple Ekick/Define Parameters/Data Files/" };
+	std::string trapParameters{ "Z Trap Parameters.csv" };
+	std::string electronDensity{ "Z Expected Electron Density.csv" };
+	std::string antiprotonDensity{ "Z Expected Antiproton Density.csv" };
+	std::string trapPotential{ "Z Trap Potential.csv" };
+	std::string theTemperature{ "Z Temperature.txt" };
+	std::string numMacroParticles{ "Z NumOfMacros.txt" };
+
+	/*-------------------------
+	End of Input
+	---------------------------*/
+
+	//Store rIndex. Just to have a 0 Code visualization. Python will just read this for us later.
+	std::ofstream fileR;
+	fileR.open(path + theR);
+	fileR << r;
+	fileR.close();
+	//Store deltaT
+	fileR.open(path + theDeltaT);
+	fileR << std::setprecision(std::numeric_limits<double>::digits10);
+	fileR << Period / stepsPerPeriod;
+
+	int  Nz, Nr;
+	double trapRadius, temperature, aNumber;
+	int numMacroElectrons, numMacroAntiprotons;
+	char comma;
+
+	//Read temperature
+	std::ifstream rFile(path + theTemperature);
+	rFile >> temperature;
+	rFile.close();
+
+	//Read number of macroparticles used
+	rFile.open(path + numMacroParticles);
+	rFile >> numMacroElectrons >> comma >> numMacroAntiprotons;
+	rFile.close();
+
+	//Generate the trap
+	rFile.open(path + trapParameters);
+	rFile >> trapRadius >> comma;
+	//Create Electrodes
+	//First get length of electrodes
+	std::string aLine;
+	std::getline(rFile, aLine);
+	std::stringstream ss(aLine);
+	std::vector<double> lengths;
+	while (ss >> aNumber)
+	{
+		lengths.push_back(aNumber);
+		ss >> comma;
+	}
+	//Now get the voltages
+	std::getline(rFile, aLine);
+	std::stringstream ss2(aLine);
+	std::vector<double> voltages;
+	while (ss2 >> aNumber)
+	{
+		voltages.push_back(aNumber);
+		ss2 >> comma;
+	}
+	//Now get the gaps
+	std::getline(rFile, aLine);
+	std::stringstream ss3(aLine);
+	std::vector<double> gaps;
+	while (ss3 >> aNumber)
+	{
+		gaps.push_back(aNumber);
+		ss3 >> comma;
+	}
+	std::vector<Electrode> trapElectrodes;
+	for (unsigned int i = 0; i < lengths.size(); ++i)
+	{
+		trapElectrodes.push_back(Electrode(lengths[i], voltages[i]));
+	}
+	rFile >> Nz >> comma >> Nr >> comma;
+
+	//Limit scope. Usually unnecessary, but if the trap is very big, you have many data points, and a limited memory, this will delete this trap before we create the second trap for the gif animation
+	{
+		//Create the trap
+		PenningTrap theTrap(trapRadius, trapElectrodes, gaps, Nz, Nr);
+		//Now load the plasmas with a given number of macro-particles
+		Plasma electronPlasma(theTrap, "Electrons", massE, -ePos);
+		electronPlasma.loadDensityFile(path + electronDensity, temperature, numMacroElectrons);
+		Plasma antiprotonPlasma(theTrap, "Antiprotons", massP, -ePos);
+		antiprotonPlasma.loadDensityFile(path + antiprotonDensity, temperature, numMacroAntiprotons);
+		theTrap.saveStates(0);
+
+		//Now we want to run the simulation and see how the macro-particles evolve
+		//First look at the total temperature of electrons and antiprotons in the timescale of interest
+		double deltaT{ Period / stepsPerPeriod };
+		std::ofstream electronTemp, antiprotonTemp;
+		electronTemp.open(path + electronTempFile);
+		antiprotonTemp.open(path + antiprotonTempFile);
+
+		//More accuracy in a single multiplication than a sequence of additions to keep track of time
+		for (int i = 1;; ++i)
+		{
+			double time = i * deltaT;
+			theTrap.movePlasmas(deltaT);
+			theTrap.saveStates(time);
+
+			//Record the temperature evolution
+			electronTemp << time - deltaT << ',' << electronPlasma.getTemperature() << '\n';
+			antiprotonTemp << time - deltaT << ',' << antiprotonPlasma.getTemperature() << '\n';
+
+			if (time + deltaT > simulationTime)
+			{
+				break;
+			}
+		}
+	}
+
+	//Now generate the data for the gif animation of a specific r
+	//Create the trap
+	PenningTrap theTrap(trapRadius, trapElectrodes, gaps, Nz, Nr);
+	//Now load the plasmas with a given number of macro-particles
+	Plasma electronPlasma(theTrap, "Electrons", massE, -ePos);
+	electronPlasma.loadDensityFile(path + electronDensity, temperature, numMacroElectrons);
+	Plasma antiprotonPlasma(theTrap, "Antiprotons", massP, -ePos);
+	antiprotonPlasma.loadDensityFile(path + antiprotonDensity, temperature, numMacroAntiprotons);
+	theTrap.saveStates(0, r);
+	//Evolve same as before, but store only the r of interest. Ando dont save temperatures
+	//Now we want to run the simulation and see how the macro-particles evolve
+	double deltaT{ Period / stepsPerPeriod };
+
+	//More accuracy in a single multiplication than a sequence of additions to keep track of time
+	for (int i = 1;; ++i)
+	{
+		double time = i * deltaT;
+		theTrap.movePlasmas(deltaT);
+		theTrap.saveStates(time, r);
+
+		if (time + deltaT > simulationTime)
+		{
+			break;
+		}
+	}
+
+	theTrap.extractPlasmasHistories(path + "Z ");
+	return 0;
+}
