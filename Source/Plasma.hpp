@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 16 Mar 2020
+Last modified on 20 Jul 2020
 
 Declarations for the Plasma class
 */
@@ -73,7 +73,9 @@ public:
 	int getNumMacro() const;//Return the current number of macro-particles still in the trap
 	int getNumMacroCentralWell() const;//Number of macro particles within this region of the trap (well in the centre)
 	double getAverageTemperature() const;//Return the average temperature over the entire saved states.
+	double getstdDeviation() const;
 	double getTemperature() const;//Return the temperature using just the last 2 stored speeds (need 2 because remember speed and position are shifted by dt/2)
+	double getCentralDensity() const; //Return density at the centre of the trap.
 	//Loading routines
 	/*----------------------------------------------------------------------------------
 	These routines below are the only thing that you should change/add to the code.
@@ -84,13 +86,12 @@ public:
 	2) Assign charge and charge density of a MacroRing (same for all).
 	3) Clear the rings vector (This is like cleaning the trap before loading a plasma).
 	4) Push the MacroRings into the rings vector according to the loading you want.
-	5) Solve Poisson's Equation. Just call the method; literally one line: solvePoisson();
+	5) Store initial Density
+	6) Solve Poisson's Equation. Just call the method; literally one line: solvePoisson();
 
 	The code only requires the loading to populate the rings vector i.e. telling the code how
 	and where are the particles initially.
 	-------------------------------------------------------------------------------------*/
-	void loadOneDUniform(int numMacro, double totalCharge, double lengthLine, int r); //equally spaced particles at fixed r in a length centred in the center of the trap.
-	void loadSingleRing(double totalCharge, int r, double Z, double speed); //Single ring at a position with a velocity
 	void loadProfile(double aTemperature, double totalCharge, double shape, double scale, int numMacro, double KSThreshold); //Load using a density profile (as obtained from MCP), shape and scale define the generalized normal fit. Assume local thermal equilibrium along each radius
 	void loadDensityFile(std::string fileName, double aTemperature, int numMacro);
 
