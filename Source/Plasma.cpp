@@ -1,6 +1,6 @@
 /*
 Written by: Daniel Duque
-Last modified on 16 Mar 2020
+Last modified on 20 Jul 2020
 
 Definitions for the Plasma class
 */
@@ -184,6 +184,31 @@ double Plasma::getAverageTemperature() const
 	}
 	return T / times;
 }
+double Plasma::getstdDeviation() const
+{
+	double mean{ getAverageTemperature() };
+	double T{ 0 };
+	//Number of speeds stored minus one (need to average with next one, so ignore the last one)
+	int times{ (int)rings[0].historySpeed.size() - 1 };
+	double numParticles{ 0 };
+	for (const MacroRing& aRing : rings)
+	{
+		double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+		numParticles += aMass / mass;
+	}
+	for (int i = 0; i < times; ++i)
+	{
+		double KE{ 0 };
+		for (const MacroRing& aRing : rings)
+		{
+			double aMass{ aRing.posR == 0 ? massMacro : 8 * aRing.posR * massMacro };
+			double speed{ (aRing.historySpeed[i] + aRing.historySpeed[i + 1]) / 2 };
+			KE += 0.5 * aMass * speed * speed;
+		}
+		T += pow((2 * KE / (KB * numParticles)) - mean, 2);
+	}
+	return sqrt(T / (times - 1));
+}
 double Plasma::getTemperature() const
 {
 	double numParticles{ 0 };
@@ -326,53 +351,17 @@ void Plasma::reserve(int desired)
 		aRing.reserve(desired);
 	}
 }
-void Plasma::loadOneDUniform(int numMacro, double aTotalCharge, double lengthLine, int r)
+double Plasma::getCentralDensity() const
 {
-	//Creates equally spaced charges at r = 0 along a centred line of length lengthLine
-	if (lengthLine >= refTrap.getLength() || r >= refTrap.Nr - 1)
+	int pointsZ = refTrap.Nz + 1;
+	if (pointsZ - 1 % 2 == 0)
 	{
-		throw std::logic_error("Length of charge must be less than the length of the trap and r inside the trap");
+		return initialDensity.coeffRef((pointsZ - 1) / 2) / charge;
 	}
-	if (aTotalCharge * charge < 0)
+	else
 	{
-		throw std::logic_error("Charge of MacroRing and the plasma type must have the same sign");
+		return (initialDensity.coeffRef(pointsZ / 2) + initialDensity.coeffRef((pointsZ / 2) - 1)) / (2 * charge);
 	}
-	if (numMacro <= 0)
-	{
-		throw std::logic_error("Number of macro-particles has to be a positive integer");
-	}
-	aTotalCharge /= numMacro; //Charge of a single macro-ring
-	chargeMacro = (r == 0 ? aTotalCharge : aTotalCharge / (8 * r));
-	massMacro = chargeMacro * mass / charge;
-	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
-	rings.clear();
-	rings.reserve(numMacro);
-	//Divide lengthLine in numMacro + 1 cells, which corresponds to numMacro + 2 points
-	//Put the particles along the points except for the first and last point
-	double start{ (refTrap.getLength() - lengthLine) / 2 };
-	double hz{ lengthLine / (numMacro + 1) };
-	for (int i = 1; i <= numMacro; ++i)
-	{
-		rings.push_back(MacroRing(r, start + i * hz, 0));
-	}
-	solvePoisson();
-}
-void Plasma::loadSingleRing(double aTotalCharge, int r, double Z, double speed)
-{
-	if (Z >= refTrap.getLength() || Z <= 0 || r >= refTrap.Nr - 1)
-	{
-		throw std::logic_error("Input r,z is not inside the trap");
-	}
-	if (aTotalCharge * charge < 0)
-	{
-		throw std::logic_error("Charge of MacroRing and the plasma type must have the same sign");
-	}
-	chargeMacro = r == 0 ? aTotalCharge : aTotalCharge / (8 * r);
-	massMacro = chargeMacro * mass / charge;
-	macroChargeDensity = 4 * chargeMacro / (PI * refTrap.hz * refTrap.hr * refTrap.hr);
-	rings.clear();
-	rings.push_back(MacroRing(r, Z, speed));
-	solvePoisson();
 }
 void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape, double scale, int numMacro, double KSThreshold)
 {
@@ -463,6 +452,7 @@ void Plasma::loadProfile(double aTemperature, double aTotalCharge, double shape,
 			//Pseudo KS distance, is just twice the amount because we assume symmetry along z wrt the centre of the trap so we only care about half the distribution
 			KSCorrection = 2 * maxDistance;
 		}
+		std::cout << maxDistance << '\n';
 		if (maxDistance < KSThreshold)
 		{
 			break;
